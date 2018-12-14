@@ -54,6 +54,11 @@ class MyFirstGUI:
         self.yscroll.grid(row=0, column=1, sticky=N+S)
         self.canvas = Canvas(self.frame, bd=0,width=1326,height=400, xscrollcommand=self.xscroll.set, yscrollcommand=self.yscroll.set)
         self.canvas.grid(row=0, column=0, sticky=N+S+E+W)
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+        self.canvas.bind("<Left>", lambda event: self.canvas.xview_scroll(-1, "units"))
+        self.canvas.bind("<Right>", lambda event: self.canvas.xview_scroll(1, "units"))
+        self.canvas.focus_set()
+        self.canvas.bind("<1>", lambda event: self.canvas.focus_set())
         self.xscroll.config(command=self.canvas.xview)
         self.yscroll.config(command=self.canvas.yview)
         self.frame.pack(fill=BOTH,expand=1)
@@ -61,20 +66,47 @@ class MyFirstGUI:
         self.canvas.create_image(0, 0, image=self.img, anchor="nw")
         self.canvas.config(scrollregion=self.canvas.bbox(ALL))
 
-        
+
         ##mój kod (done step by step)
 
         self.create_stops()
-        route1 = ['Bronowice Małe', 'Bronowice Wiadukt', 'Wesele']
-        coords1 = get_route_coords(route1)
-        times1 = [50,40]
 
-        route2 = ['Wesele', 'Bronowice', 'Głowackiego']
-        coords2 = get_route_coords(route2)
-        times2 = [30, 40]
-        self.trams = [Tram(self.canvas,coords1,times1),Tram(self.canvas,coords2,times2)]
+        route1 = [
+            "Krowodrza Górka",
+            "Bratysławska",
+            "Szpital Narutowicza",
+            "Dworzec Towarowy",
+            "Politechnika",
+            "Dworzec Główny Tunel",
+            "Rondo Mogilskie",
+            "Rondo Grzegórzeckie",
+            "Zabłocie",
+            "Klimeckiego",
+            "Kuklińskiego",
+            "Gromadzka",
+            "Lipska",
+            "Dworzec Płaszów Estakada",
+            "Kabel",
+            "Bieżanowska",
+            "Dauna",
+            "Piaski Nowe",
+            "Nowosądecka",
+            "Witosa",
+            "Kurdwanów P+R"]
+
+        times1 = np.divide([100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100],3)
+        coords1 = get_route_coords(route1)
+
+        print(times1,coords1)
+
+        self.trams = [Tram(self.canvas,coords1,np.int_(times1))]
         self.master.after(0,self.animation)
 
+    def _on_mousewheel(self, event):
+        self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    def _on_left_arrow(self, event):
+        self.canvas.xview_scroll(int(-1 * (event.delta / 120)), "units")
 
     def create_stop(self,x,y,name):
         self.canvas.create_oval(x, y, x+2*STOP_RADIUS , y +2*STOP_RADIUS, fill=STOP_COLOR)
@@ -91,7 +123,7 @@ class MyFirstGUI:
     def animation(self):
         for tram in self.trams:
             tram.move();
-        self.master.after(30,self.animation)
+        self.master.after(42,self.animation)
 
 
 
@@ -110,9 +142,9 @@ def get_route_coords(route):
 if __name__ == '__main__':
     with open('data.json') as f:
         data = json.load(f)
-
     root = Tk()
     filename = "resources/linie_tramwajowe_blank.png"
     json_file = "data.json"
     my_gui = MyFirstGUI(root,filename,json_file)
     root.mainloop()
+

@@ -41,7 +41,7 @@ if __name__ == "__main__":
 
     #adding the image
     ##File = askopenfilename(parent=root, initialdir="C:/",title='Choose an image.')
-    File = "resources/linie_tramwajowe.png"
+    File = "resources/linie_tramwajowe_half.png"
     img = ImageTk.PhotoImage(Image.open(File))
     canvas.create_image(0,0,image=img,anchor="nw")
     canvas.config(scrollregion=canvas.bbox(ALL))
@@ -51,8 +51,9 @@ if __name__ == "__main__":
     def printcoords(event):
         #outputting x and y coords to console
         stop = TramStop()
-        stop.x_coord = event.x
-        stop.y_coord = event.y
+        stop.x_coord = canvas.canvasx(event.x)
+        stop.y_coord = canvas.canvasy(event.y)
+        print("{} {}".format(canvas.canvasx(event.x), canvas.canvasy(event.y)))
         stop.stop_name = simpledialog.askstring("Input", "What is the stop's name?", parent=root)
         if any(d['stop_name'] == stop.stop_name for d in stops):
             if messagebox.askyesno("Stop already exist", "Do you want to update it?"):
@@ -63,6 +64,8 @@ if __name__ == "__main__":
 
         for element in stops:
             print(element)
+
+
 
     #mouseclick event
     canvas.bind("<Button 1>",printcoords)
