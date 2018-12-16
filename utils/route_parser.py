@@ -15,5 +15,4 @@ def parse_route(path = 'resources/trasa'):
     with open('resources/trasa', 'w') as f:
         for item in result:
             parsed.append(item)
-
     return parsed
