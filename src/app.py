@@ -4,26 +4,27 @@ import json
 import numpy as np
 import time
 
-
+FPS = 24
 STOP_COLOR = 'red'
 STOP_RADIUS = 7
 TRAM_COLOR = 'yellow'
 TRAM_RADIUS = 9
 LIGHT_RADIUS = 4
 
-START_TIME = 6*3600
+START_TIME = 6*3600+45
 
 with open('data/data.json') as f:
     STOP_DATA = json.load(f)
 
 class Tram:
-    def __init__(self,canvas,route,times):
+    def __init__(self,canvas,route,times,number):
         self.time_factor = 1
         self.stop_count = 0
         self.counter = 0
         self.time_to_departure = 0
         self.route = route
-        self.times = times
+        self.times = np.multiply(times,FPS)
+        self.number =number
         self.canvas = canvas
         self.time = self.times[self.stop_count]
         self.in_action =True
@@ -37,7 +38,7 @@ class Tram:
         self.body = self.canvas.create_oval(int(x), int(y), int(x + 2 * TRAM_RADIUS), int(y + 2 * TRAM_RADIUS),
                                             fill=TRAM_COLOR)
 
-        self.text = self.canvas.create_text(int(x+TRAM_RADIUS), int(y+TRAM_RADIUS),fill='black',text='50',font="Times 7 italic bold",
+        self.text = self.canvas.create_text(int(x+TRAM_RADIUS), int(y+TRAM_RADIUS),fill='black',text=self.number,font="Times 7 italic bold",
                                             activefill='red')
 
     def move(self):
@@ -76,90 +77,38 @@ class Tram:
         self.direction = np.subtract(self.route[self.stop_count + 1], self.route[self.stop_count])
 
 
-# class Intersection:
-#     def __init__(self, canvas,position):
-#         self.light_timer = 30
-#         self.canvas = canvas
-#         self.position = position
-#         self.x, self.y = self.position
-#         self.preference = 'A'
-#         self.change_color()
-#         self.body = self.canvas.create_oval(int(self.x), int(self.y), int(self.x + 2*LIGHT_RADIUS),int(self.y + 2*LIGHT_RADIUS),fill=self.color)
-#         self.text = self.canvas.create_text(self.x-20, self.y, fill=self.color, font="Times 11 italic bold",
-#                                 text=self.preference)
-#
-#
-#
-#     def change_color(self):
-#         if self.preference == 'A':
-#             self.color = 'green'
-#         else:
-#             self.color = 'red'
-#
-#     def change(self):
-#         if self.preference == 'A':
-#             self.preference = 'B'
-#         else:
-#             self.preference = 'A'
-#         self.change_color()
-#         self.change_items_color()
-#
-#     def change_items_color(self):
-#         self.canvas.itemconfig(self.body, fill=self.color)
-#         self.canvas.itemconfig(self.text, fill=self.color, text=self.preference)
-#
-#     def animate(self):
-#         self.light_timer -=1
-#         if self.light_timer ==0:
-#             self.light_timer = 30
-#             self.change()
 class MyFirstGUI:
-    def __init__(self, master,filename,stops_json,traffic_lights_json):
+    def __init__(self, master,filename,stops_json,trams_data_json):
         with open(stops_json) as f:
             self.stops_data = json.load(f)
 
-        with open(traffic_lights_json) as f:
-            self.traffic_lights_data = json.load(f)
+        with open(trams_data_json) as f:
+            self.trams_data = json.load(f)
 
         self.master = master
         self.filename = filename
         self.trams = []
         self.setup()
         self.create_stops()
-
-
-        route1 = [
-            "Krowodrza Górka",
-            "Bratysławska",
-            "Szpital Narutowicza",
-            "Dworzec Towarowy",
-            "Politechnika",
-            "Dworzec Główny Tunel",
-            "Rondo Mogilskie",
-            "Rondo Grzegórzeckie",
-            "Zabłocie",
-            "Klimeckiego",
-            "Kuklińskiego",
-            "Gromadzka",
-            "Lipska",
-            "Dworzec Płaszów Estakada",
-            "Kabel",
-            "Bieżanowska",
-            "Dauna",
-            "Piaski Nowe",
-            "Nowosądecka",
-            "Witosa",
-            "Kurdwanów P+R"]
-
-        times1 = np.divide([100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100],1)
-        times2 = np.divide(
-            [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100], 3)
-        coords1 = get_route_coords(route1)
-
-        self.draw_route(coords1)
-        self.trams = [Tram(self.canvas,coords1,np.int_(times1)),Tram(self.canvas,coords1,np.int_(times2))]
+        self.tram_counter =0
+        self.trams = []
         self.master.after(0,self.animation)
 
+    def animation(self):
+        #print("respawn: {}, current: {}".format(self.trams_data[self.tram_counter]['start_time'],self.seconds))
+        if self.trams_data[self.tram_counter]['start_time']<=int(self.seconds):
+            t = Tram(self.canvas,
+                                   get_route_coords(self.trams_data[self.tram_counter]['route']),
+                                   self.trams_data[self.tram_counter]['times'],
+                                   self.trams_data[self.tram_counter]['number'])
+            t.time_factor = self.time_factor
+            self.trams.append(t)
+            self.tram_counter +=1
+        for tram in self.trams:
+            tram.move()
+        self.seconds += int(1000/FPS)/1000*self.time_factor
+        self.time.config(text="Godzina: {}".format(time.strftime('%H:%M:%S', time.gmtime(self.seconds))))
+        self.master.after(int(1000/FPS),self.animation)
 
     def setup(self):
         self.master.title("Symulacja krakowskich lini tramwajowych")
@@ -219,12 +168,7 @@ class MyFirstGUI:
             y_coord = stop['y_coord']
             self.create_stop(x_coord, y_coord, stop_name)
 
-    def animation(self):
-        for tram in self.trams:
-            tram.move()
-        self.seconds += 0.042*self.time_factor
-        self.time.config(text="Godzina: {}".format(time.strftime('%H:%M:%S', time.gmtime(self.seconds))))
-        self.master.after(42,self.animation)
+
 
     def speed_up(self):
         self.time_factor *= 2
@@ -256,7 +200,7 @@ if __name__ == '__main__':
     root = Tk()
     filename = "resources/linie_tramwajowe_blank.png"
     stops_json = 'data/data.json'
-    traffic_lights_json = 'data/traffic_lights.json'
+    traffic_lights_json = 'data/tram_data.json'
     my_gui = MyFirstGUI(root,filename,stops_json,traffic_lights_json)
     root.mainloop()
 

@@ -19,16 +19,20 @@ class TramData:
     def __str__(self):
         return f'Nr. {self.number} Kierunek {self.start}  - {self.direction}: {self.route} - {self.times}'
 
+if __name__ == '__main__':
 
-data = pd.read_csv('resources/data/report_07-23.csv');
+    data = pd.read_csv('resources/data/report_07-23.csv');
 
-data = data[['time_stamp', 'stopName', 'number', 'direction', 'tripId', 'delay']]
+    data = data[['time_stamp', 'stopName', 'number', 'direction', 'tripId', 'delay']]
 
-tripIds = data.tripId.unique()
+    tripIds = data.tripId.unique()
 
-tramDatabase = []
+    tramDatabase = []
 
 
-for ID in tripIds:
-    tt = TramData(data.loc[data['tripId'] == ID])
-    tramDatabase.append(tt)
+    for ID in tripIds:
+        tt = TramData(data.loc[data['tripId'] == ID])
+        tramDatabase.append(tt)
+
+    tram = tramDatabase[0]
+    print(tram)
