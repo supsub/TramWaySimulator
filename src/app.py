@@ -2,42 +2,100 @@ from tkinter import Tk, Label, Button, Frame, SUNKEN, Scrollbar, HORIZONTAL, Can
 from PIL import Image, ImageTk
 import json
 import numpy as np
-import time
+import pandas as pd
+import time,datetime
+import calendar
+import random
+
+
+def toTimestamp(d):
+  return calendar.timegm(d.timetuple())
+
+def decision(probability):
+    return random.random() < probability
+
+def getHexValue(decimal):
+    result = hex(decimal)[2:]
+    if len(result) == 1:
+        result = '0'+result
+    return result
+
 
 FPS = 24
-STOP_COLOR = 'red'
-STOP_RADIUS = 7
+STOP_COLOR = 'lightblue'
+STOP_RADIUS = 12
 TRAM_COLOR = 'yellow'
-TRAM_RADIUS = 9
+TRAM_RADIUS = 10
 LIGHT_RADIUS = 4
 TIME_FACTOR = 1
+START_DATE = toTimestamp(pd.Timestamp('2018-07-23 0:00:00'))
 START_TIME = 6 * 3600 + 45
+INDEPENDENT_COURSES = 500000
 
-with open('data/data.json') as f:
+def get_value_from_timestamp(time,trafficIndexFormatted,trafficValues):
+    return np.interp(time,trafficIndexFormatted,trafficValues)
+
+with open('data/data_with_factors.json') as f:
     STOP_DATA = json.load(f)
 
+df = pd.read_json('data/traffic_in_time.json')
+TIMES = pd.Series(df.index).apply(toTimestamp)
+TRAFFIC = df.value*INDEPENDENT_COURSES
+
+class TramStop:
+    def __init__(self,canvas,x,y,name,factor):
+        self.x = x
+        self.y = y
+        self.name = name
+        self.factor = factor
+        if self.factor == None:
+            self.factor = 0
+        self.canvas = canvas
+        self.crowd = 0
+        self.draw()
+
+    def draw(self):
+        self.canvas.create_oval(self.x, self.y, self.x + 2 * STOP_RADIUS, self.y + 2 * STOP_RADIUS, fill=STOP_COLOR)
+        self.canvas.create_text(self.x, self.y - 20, fill="darkblue", font="Times 11 italic bold",
+                                text=self.name)
+        self.crowd_text = self.canvas.create_text(self.x+ STOP_RADIUS, self.y +STOP_RADIUS, fill="black", font="Times 11 bold",
+                                text=self.crowd)
+    def update(self,seconds):
+        probability = get_value_from_timestamp(START_DATE+seconds,TIMES,TRAFFIC)*self.factor/FPS*TIME_FACTOR
+        if probability>1:
+            self.crowd+=int(probability)
+        elif decision(probability):
+            self.crowd += 1
+        self.canvas.itemconfig(self.crowd_text, text=self.crowd)
 
 class Tram:
-    def __init__(self, canvas, route, times, number):
-        self.stop_count = 0
-        self.counter = 0
-        self.route = route
-        self.times = np.multiply(times, FPS)
+    def __init__(self, canvas, route, times, number,stops):
         self.number = number
         self.canvas = canvas
-        self.time = self.times[self.stop_count]
+        self.stops = stops
+        self.route_names = route
+        self.route = get_route_coords(route)
+        self.times = np.multiply(times, FPS)
+        self.draw()
+        self.people = 0
+        self.max_people = 100
+        self.stop_count = 0
+        self.counter = 0
         self.in_action = True
         self.moving = True
+
+        self.time = self.times[self.stop_count]
+
         self.calculate_direction()
-        self.draw()
+
 
     def draw(self):
         x, y = self.route[0]
         self.body = self.canvas.create_oval(int(x), int(y), int(x + 2 * TRAM_RADIUS), int(y + 2 * TRAM_RADIUS),
-                                            fill=TRAM_COLOR)
+                                            fill=TRAM_COLOR, outline='#00ff00',width=3)
 
         self.text = self.canvas.create_text(int(x + TRAM_RADIUS), int(y + TRAM_RADIUS), fill='black', text=self.number,
-                                            font="Times 7 italic bold",
+                                            font="Times 9 italic bold",
                                             activefill='red')
 
     def move(self):
@@ -61,16 +119,41 @@ class Tram:
     def change_direction(self):
         self.counter = 0
         self.stop_count += 1
-        if self.stop_count + 1 < len(self.times):
+        if self.stop_count < len(self.times):
             self.calculate_direction()
             self.time = self.times[self.stop_count]
         else:
+            self.interactionWithTramStop()
             self.in_action = False
             self.canvas.delete(self.body)
             self.canvas.delete(self.text)
 
     def calculate_direction(self):
+        self.interactionWithTramStop()
         self.direction = np.subtract(self.route[self.stop_count + 1], self.route[self.stop_count])
+
+    def interactionWithTramStop(self):
+        stop = self.getTramStopByName(self.route_names[self.stop_count])
+        if stop != None:
+            people_entering = int(0.7*stop.crowd)
+            people_leaving = int(self.people*self.getProbabilityOfLeaving(stop))
+            stop.crowd -= people_entering
+            self.people += (people_entering-people_leaving)
+            overflow = int(min(self.people/self.max_people*255,255))
+            self.canvas.itemconfig(self.body,outline = "#"+getHexValue(overflow)+getHexValue(255-overflow)+"00")
+            self.stops.remove(stop)
+
+    def getTramStopByName(self,name):
+        for stop in self.stops:
+            if stop.name == name:
+                return stop
+    def getProbabilityOfLeaving(self,stop):
+        if self.stop_count > 0:
+            sum = 0
+            for s in self.stops:
+                sum += s.factor
+            return stop.factor/sum
+        return 0
 
 
 class MyFirstGUI:
@@ -84,6 +167,7 @@ class MyFirstGUI:
         self.master = master
         self.filename = filename
         self.trams = []
+        self.stops = []
         self.setup()
         self.create_stops()
         self.tram_counter = 0
@@ -91,18 +175,24 @@ class MyFirstGUI:
         self.master.after(0, self.animation)
 
     def animation(self):
-        print(len(self.trams))
-        #print("respawn: {}, current: {}".format(self.trams_data[self.tram_counter]['start_time'],self.seconds))
+
+
         while self.trams_data[self.tram_counter]['start_time'] <= int(self.seconds):
+            relevant_stops = []
+            for stop in self.stops:
+                if stop.name in self.trams_data[self.tram_counter]['route']:
+                    relevant_stops.append(stop)
             t = Tram(self.canvas,
-                     get_route_coords(self.trams_data[self.tram_counter]['route']),
+                     self.trams_data[self.tram_counter]['route'],
                      self.trams_data[self.tram_counter]['times'],
-                     self.trams_data[self.tram_counter]['number'])
+                     self.trams_data[self.tram_counter]['number'],relevant_stops)
             self.trams.append(t)
             self.tram_counter += 1
         self.trams = [i for i in self.trams if i.in_action]
         for tram in self.trams:
             tram.move()
+        for stop in self.stops:
+            stop.update(self.seconds)
         self.seconds += int(1000 / FPS) / 1000 * TIME_FACTOR
         self.time.config(text="Godzina: {}".format(time.strftime('%H:%M:%S', time.gmtime(self.seconds))))
         self.time_factor.config(text="Przyspieszenie: {}".format(TIME_FACTOR))
@@ -161,11 +251,8 @@ class MyFirstGUI:
 
     def create_stops(self):
         for stop in self.stops_data:
-            stop_name = stop['stop_name']
-            x_coord = stop['x_coord']
-            y_coord = stop['y_coord']
-            self.create_stop(x_coord, y_coord, stop_name)
-
+            s = TramStop(self.canvas,stop['x_coord'],stop['y_coord'],stop['stop_name'],stop['factor'])
+            self.stops.append(s)
     def speed_up(self):
         global TIME_FACTOR
         TIME_FACTOR *= 2
@@ -195,7 +282,7 @@ def get_coords_of_stop(stop_name):
 if __name__ == '__main__':
     root = Tk()
     filename = "resources/linie_tramwajowe_blank.png"
-    stops_json = 'data/data.json'
-    traffic_lights_json = 'data/tram_data.json'
-    my_gui = MyFirstGUI(root, filename, stops_json, traffic_lights_json)
+    stops_json = 'data/data_with_factors.json'
+    tram_data_json = 'data/tram_data.json'
+    my_gui = MyFirstGUI(root, filename, stops_json, tram_data_json)
     root.mainloop()
