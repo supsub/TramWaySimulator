@@ -201,6 +201,10 @@ class ApplicationGui:
 
         with open(trams_data_json) as f:
             self.trams_data = json.load(f)
+
+        open("output/result_stops.csv","w").close()
+        open("output/result_trams.csv", "w").close()
+
         self.master = master
         self.filename = filename
         self.setup_animation_window()
@@ -239,6 +243,16 @@ class ApplicationGui:
             tram.move()
         for stop in self.stops:
             stop.update(self.seconds)
+        if decision(1):
+            with open("output/result_stops.csv","a",encoding="utf-8") as myfile:
+                for stop in self.stops:
+                    myfile.write("{},{},{}\n".format(int(self.seconds),stop.name,stop.crowd))
+            with open("output/result_trams.csv","a",encoding="utf-8") as myfile:
+                for tram in self.trams:
+                    myfile.write("{},{},{},{}\n".format(int(self.seconds),
+                                                     tram.number,
+                                                     int(100*tram.people/tram.max_people),
+                                                     tram.route_names[tram.stop_count]))
 
     def update_seconds(self):
         self.seconds += int(1000 / FPS) / 1000 * TIME_FACTOR
